@@ -1,6 +1,11 @@
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+LOG_DIR = BASE_DIR / 'logs'
+
+if not LOG_DIR.exists():
+    LOG_DIR.mkdir()
 
 SECRET_KEY = 'your-secret-key'
 
@@ -127,16 +132,107 @@ DEFAULT_FROM_EMAIL = "autotechsupp74@yandex.ru"
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'detailed': {
+            'format': '{levelname} {asctime} {pathname} {message}',
+            'style': '{',
+        },
+        'error': {
+            'format': '{levelname} {asctime} {message} {pathname} {exc_info}',
+            'style': '{',
+        },
+        'mail': {
+            'format': '{levelname} {asctime} {message} {pathname}',
+            'style': '{',
         },
     },
-    'root': {
-        'handlers': ['console'],
-        'level': 'DEBUG',
+    'filters': {
+        'debug_only': {
+            '()': 'django.utils.log.CallbackFilter',
+            'callback': lambda record: DEBUG,
+        },
+        'prod_only': {
+            '()': 'django.utils.log.CallbackFilter',
+            'callback': lambda record: not DEBUG,
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'detailed',
+            'filters': ['debug_only'],
+        },
+        'general_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': LOG_DIR / 'general.log',
+            'formatter': 'verbose',
+            'filters': ['prod_only'],
+        },
+        'errors_file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': LOG_DIR / 'errors.log',
+            'formatter': 'error',
+        },
+        'security_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': LOG_DIR / 'security.log',
+            'formatter': 'verbose',
+        },
+        'mail_admins': {
+            'level': 'ERROR',
+            'class': 'django.utils.log.AdminEmailHandler',
+            'formatter': 'mail',
+            'filters': ['prod_only'],
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['general_file', 'errors_file', 'security_file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'django.request': {
+            'handlers': ['errors_file', 'mail_admins'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.server': {
+            'handlers': ['errors_file', 'mail_admins'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.template': {
+            'handlers': ['errors_file'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.db.backends': {
+            'handlers': ['errors_file'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.security': {
+            'handlers': ['security_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
+
+if DEBUG:
+    LOGGING['handlers']['console']['filters'] = []
+    LOGGING['handlers']['general_file']['filters'] = []
+else:
+    LOGGING['handlers']['console']['filters'] = ['debug_only']
+    LOGGING['handlers']['general_file']['filters'] = ['prod_only']
 
 CELERY_BROKER_URL = 'redis://default:fRM3rRd2cBdaLIdTtEnjBzRLKitS4IYQ@redis-11957.c85.us-east-1-2.ec2.redns.redis-cloud.com:11957/0'
 CELERY_RESULT_BACKEND = 'redis://default:fRM3rRd2cBdaLIdTtEnjBzRLKitS4IYQ@redis-11957.c85.us-east-1-2.ec2.redns.redis-cloud.com:11957/0'

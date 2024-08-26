@@ -1,27 +1,29 @@
-from django.db import models
 from django.contrib.auth.models import User
-from django.db.models import Sum
 from django.db import models
+from django.db.models import Sum
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .tasks import notify_subscribers
+from django.core.mail import send_mail
+from celery import shared_task
 
 class DigestRun(models.Model):
     last_run = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return f"DigestRun from {self.last_run}"
 
 class Author(models.Model):
     authorUser = models.OneToOneField(User, on_delete=models.CASCADE)
     ratingAuthor = models.SmallIntegerField(default=0)
 
     def update_rating(self):
-        postRat = self.post_set.aggregate(postRating=Sum('rating'))
-        pRat = postRat.get('postRating') or 0
+        post_rat = self.post_set.aggregate(postRating=Sum('rating'))
+        p_rat = post_rat.get('postRating') or 0
 
-        commentRat = self.authorUser.comment_set.aggregate(commentRating=Sum('rating'))
-        cRat = commentRat.get('commentRating') or 0
+        comment_rat = self.authorUser.comment_set.aggregate(commentRating=Sum('rating'))
+        c_rat = comment_rat.get('commentRating') or 0
 
-        self.ratingAuthor = pRat * 3 + cRat
+        self.ratingAuthor = p_rat * 3 + c_rat
         self.save()
 
     def __str__(self):
@@ -39,7 +41,6 @@ class Subscriber(models.Model):
 
     def __str__(self):
         return f'{self.user.username} subscribed to {self.category.name}'
-
 
 class Post(models.Model):
     NEWS = 'NW'
@@ -77,7 +78,7 @@ class Post(models.Model):
         self.save()
 
     def preview(self):
-        return self.text[0:123] + '...'
+        return self.text[:123] + '...'
 
     def __str__(self):
         return self.title
@@ -120,3 +121,22 @@ class Comment(models.Model):
 @receiver(post_save, sender=Post)
 def post_post_save(sender, instance, **kwargs):
     notify_subscribers.delay(instance.id)
+
+@shared_task
+def notify_subscribers(post_id):
+    from .models import Post, Subscriber
+
+    try:
+        post = Post.objects.get(id=post_id)
+    except Post.DoesNotExist:
+        return
+
+    subscribers = Subscriber.objects.filter(category__in=post.postCategory.all()).values_list('user__email', flat=True).distinct()
+
+    for email in subscribers:
+        send_mail(
+            subject=f'Новый пост: {post.title}',
+            message=f'Опубликована новая статья: {post.title}\n\nЧитать здесь: http://127.0.0.1:8000/news/{post.id}/',
+            from_email='autotechsupp74@yandex.ru',
+            recipient_list=[email]
+        )
