@@ -2,6 +2,9 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import Sum
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from .tasks import notify_subscribers
 
 class DigestRun(models.Model):
     last_run = models.DateTimeField(auto_now_add=True)
@@ -113,3 +116,7 @@ class Comment(models.Model):
 
     def __str__(self):
         return f'{self.commentUser.username} - {self.commentPost.title}'
+
+@receiver(post_save, sender=Post)
+def post_post_save(sender, instance, **kwargs):
+    notify_subscribers.delay(instance.id)

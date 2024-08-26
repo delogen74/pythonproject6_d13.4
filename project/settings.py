@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.yandex',
     'django_apscheduler',
+    'django_celery_beat',
 ]
 
 MIDDLEWARE = [
@@ -135,4 +136,20 @@ LOGGING = {
         'handlers': ['console'],
         'level': 'DEBUG',
     },
+}
+
+CELERY_BROKER_URL = 'redis://default:fRM3rRd2cBdaLIdTtEnjBzRLKitS4IYQ@redis-11957.c85.us-east-1-2.ec2.redns.redis-cloud.com:11957/0'
+CELERY_RESULT_BACKEND = 'redis://default:fRM3rRd2cBdaLIdTtEnjBzRLKitS4IYQ@redis-11957.c85.us-east-1-2.ec2.redns.redis-cloud.com:11957/0'
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': os.path.join(BASE_DIR, 'cache_files'),
+    }
 }
